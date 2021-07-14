@@ -1,10 +1,35 @@
 
+data "aws_iam_policy_document" "main" {
+  for_each = var.s3_buckets
+
+  statement {
+    actions   = ["s3:*"]
+    resources = [
+      "arn:aws:s3:::${each.value.bucket}",
+      "arn:aws:s3:::${each.value.bucket}/*"
+    ]
+    effect = "Deny"
+
+    condition {
+      test = "Bool"
+      variable = "aws:SecureTransport"
+      values = [ "false" ]
+    }
+
+    principals {
+      type = "*"
+      identifiers = ["*"]
+    }
+  }
+
+  override_policy_documents = var.policies
+}
+
 resource "aws_s3_bucket" "main" {
   for_each = var.s3_buckets
 
   bucket = each.value.bucket
   acl    = each.value.acl
-  policy = each.value.policy
 
   versioning {
     enabled = true
@@ -22,6 +47,13 @@ resource "aws_s3_bucket" "main" {
     target_bucket = each.value.log_bucket_for_s3
     target_prefix = "s3/${each.value.bucket}/"
   }
+}
+
+resource "aws_s3_bucket_policy" "main" {
+  for_each = var.s3_buckets
+
+  bucket = aws_s3_bucket.main[each.key].id
+  policy = data.aws_iam_policy_document.main[each.key].json
 }
 
 resource "aws_s3_bucket_public_access_block" "main" {

@@ -5,7 +5,6 @@ variable "s3_buckets" {
     permissions_boundary = string
     region               = string
     acl                  = string
-    policy               = string
     log_bucket_for_s3    = string
   }))
 
@@ -15,10 +14,15 @@ variable "s3_buckets" {
       region               = "ap-southeast-1"
       permissions_boundary = ""
       acl                  = "private"
-      policy               = ""
       log_bucket_for_s3    = ""
     }
   }
+}
+
+variable "policies" {
+  description = "Custom bucket policies to be merged with default policy from this module."
+  type        = list(any)
+  default     = []
 }
 
 variable "force_destroy" {
