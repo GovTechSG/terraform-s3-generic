@@ -3,7 +3,7 @@ data "aws_iam_policy_document" "main" {
   for_each = var.s3_buckets
 
   statement {
-    actions   = ["s3:*"]
+    actions = ["s3:*"]
     resources = [
       "arn:aws:s3:::${each.value.bucket}",
       "arn:aws:s3:::${each.value.bucket}/*"
@@ -11,13 +11,13 @@ data "aws_iam_policy_document" "main" {
     effect = "Deny"
 
     condition {
-      test = "Bool"
+      test     = "Bool"
       variable = "aws:SecureTransport"
-      values = [ "false" ]
+      values   = ["false"]
     }
 
     principals {
-      type = "*"
+      type        = "*"
       identifiers = ["*"]
     }
   }
@@ -35,10 +35,27 @@ resource "aws_s3_bucket" "main" {
     enabled = true
   }
 
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
+  dynamic "server_side_encryption_configuration" {
+    for_each = length(keys(each.value.server_side_encryption_configuration)) == 0 ? [] : [each.value.server_side_encryption_configuration]
+
+    content {
+
+      dynamic "rule" {
+        for_each = length(keys(lookup(server_side_encryption_configuration.value, "rule", {}))) == 0 ? [] : [lookup(server_side_encryption_configuration.value, "rule", {})]
+
+        content {
+          bucket_key_enabled = lookup(rule.value, "bucket_key_enabled", null)
+
+          dynamic "apply_server_side_encryption_by_default" {
+            for_each = length(keys(lookup(rule.value, "apply_server_side_encryption_by_default", {}))) == 0 ? [] : [
+            lookup(rule.value, "apply_server_side_encryption_by_default", {})]
+
+            content {
+              sse_algorithm     = apply_server_side_encryption_by_default.value.sse_algorithm
+              kms_master_key_id = lookup(apply_server_side_encryption_by_default.value, "kms_master_key_id", null)
+            }
+          }
+        }
       }
     }
   }
