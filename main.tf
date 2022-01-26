@@ -22,7 +22,7 @@ data "aws_iam_policy_document" "main" {
     }
   }
 
-  override_policy_documents = var.policies
+  override_policy_documents = tolist(each.value.policies)
 }
 
 resource "aws_s3_bucket" "main" {
@@ -67,6 +67,10 @@ resource "aws_s3_bucket" "main" {
 }
 
 resource "aws_s3_bucket_policy" "main" {
+  depends_on = [
+    aws_s3_bucket.main
+  ]
+
   for_each = var.s3_buckets
 
   bucket = aws_s3_bucket.main[each.key].id
