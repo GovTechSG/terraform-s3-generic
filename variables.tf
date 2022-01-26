@@ -6,6 +6,7 @@ variable "s3_buckets" {
     region                               = string
     acl                                  = string
     log_bucket_for_s3                    = string
+    policies                             = list(string)
     server_side_encryption_configuration = any
   }))
 
@@ -16,6 +17,7 @@ variable "s3_buckets" {
       permissions_boundary = ""
       acl                  = "private"
       log_bucket_for_s3    = ""
+      policies             = []
       server_side_encryption_configuration = {
         rule = {
           apply_server_side_encryption_by_default = {
@@ -25,12 +27,6 @@ variable "s3_buckets" {
       }
     }
   }
-}
-
-variable "policies" {
-  description = "Custom bucket policies to be merged with default policy from this module."
-  type        = list(any)
-  default     = []
 }
 
 variable "force_destroy" {

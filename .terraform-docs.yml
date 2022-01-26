@@ -1,0 +1,18 @@
+---
+# .terraform-docs.yml
+formatter: markdown
+header-from: main.tf
+sort:
+  enabled: true
+content: |
+  {{ .Header }}
+
+  ## Example
+
+  ```hcl
+  {{ include "examples/full/main.tf" }}
+  ```
+
+  {{ .Inputs }}
+
+  {{ .Outputs }}
