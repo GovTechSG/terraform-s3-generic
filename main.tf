@@ -106,6 +106,21 @@ resource "aws_s3_bucket_public_access_block" "main" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_intelligent_tiering_configuration" "example-entire-bucket" {
+  depends_on = [
+    aws_s3_bucket.main
+  ]
+
+  for_each = var.s3_buckets
+  name     = "${each.value.bucket}-intelligent-tiering"
+  bucket   = each.value.bucket
+
+  tiering {
+    access_tier = "ARCHIVE_ACCESS"
+    days        = 125
+  }
+}
+
 ###################################################################
 # IAM Role and Policy
 ###################################################################
