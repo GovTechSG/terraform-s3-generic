@@ -29,6 +29,10 @@ resource "aws_s3_bucket" "main" {
   for_each = var.s3_buckets
 
   bucket = each.value.bucket
+
+  lifecycle {
+    prevent_destroy = each.value.lifecycle_prevent_destroy
+  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
