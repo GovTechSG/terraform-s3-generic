@@ -6,20 +6,18 @@ variable "s3_buckets" {
     region                               = string
     acl                                  = string
     log_bucket_for_s3                    = string
-    lifecycle_prevent_destroy            = bool
     policies                             = list(string)
     server_side_encryption_configuration = any
   }))
 
   default = {
     main = {
-      bucket                    = ""
-      region                    = "ap-southeast-1"
-      permissions_boundary      = ""
-      acl                       = "private"
-      log_bucket_for_s3         = ""
-      lifecycle_prevent_destroy = true
-      policies                  = []
+      bucket               = ""
+      region               = "ap-southeast-1"
+      permissions_boundary = ""
+      acl                  = "private"
+      log_bucket_for_s3    = ""
+      policies             = []
       server_side_encryption_configuration = {
         rule = {
           apply_server_side_encryption_by_default = {
