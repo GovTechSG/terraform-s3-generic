@@ -121,6 +121,26 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "example-entire-bucke
   }
 }
 
+resource "aws_s3_bucket_cors_configuration" "main" {
+  depends_on = [
+    aws_s3_bucket.main
+  ]
+  for_each = {for key, value in var.s3_buckets : key => value if value.cors_configuration != null}
+  bucket   = each.key
+
+  dynamic "cors_rule" {
+    for_each = each.value.cors_configuration
+    content {
+      allowed_methods = cors_rule.value.allowed_methods
+      allowed_origins = cors_rule.value.allowed_origins
+      allowed_headers = try(cors_rule.value.allowed_headers, null)
+      expose_headers  = try(cors_rule.value.expose_headers, null)
+      max_age_seconds = try(cors_rule.value.max_age_seconds, null)
+      id              = try(cors_rule.value.id, null)
+    }
+  }
+}
+
 ###################################################################
 # IAM Role and Policy
 ###################################################################
