@@ -64,8 +64,18 @@ resource "aws_s3_bucket_logging" "main" {
   target_prefix = "s3/${each.value.bucket}/"
 }
 
+resource "aws_s3_bucket_ownership_controls" "main" {
+  # Enforce bucket ownership for For buckets that don't have ACL enabled
+  for_each = { for key, value in var.s3_buckets : key => value if value.acl == null }
+
+  bucket = each.value.bucket
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
 resource "aws_s3_bucket_acl" "main" {
-  for_each = var.s3_buckets
+  for_each = { for key, value in var.s3_buckets : key => value if value.acl != null }
 
   bucket = each.value.bucket
   acl    = each.value.acl
