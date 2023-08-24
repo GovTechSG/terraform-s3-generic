@@ -136,7 +136,7 @@ resource "aws_s3_bucket_cors_configuration" "main" {
     aws_s3_bucket.main
   ]
   for_each = {for key, value in var.s3_buckets : key => value if value.cors_configuration != null}
-  bucket   = each.key
+  bucket   = each.value.bucket
 
   dynamic "cors_rule" {
     for_each = each.value.cors_configuration
