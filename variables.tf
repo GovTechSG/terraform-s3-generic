@@ -4,7 +4,7 @@ variable "s3_buckets" {
     bucket                               = string
     permissions_boundary                 = string
     region                               = string
-    acl                                  = string
+    acl                                  = optional(string)
     log_bucket_for_s3                    = string
     policies                             = list(string)
     server_side_encryption_configuration = any
@@ -27,7 +27,6 @@ variable "s3_buckets" {
       bucket                               = ""
       region                               = "ap-southeast-1"
       permissions_boundary                 = ""
-      acl                                  = "private"
       log_bucket_for_s3                    = ""
       policies                             = []
       server_side_encryption_configuration = {
