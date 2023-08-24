@@ -1,6 +1,6 @@
 variable "s3_buckets" {
   description = "A map of bucket names to an object describing the S3 bucket settings for the bucket."
-  type = map(object({
+  type        = map(object({
     bucket                               = string
     permissions_boundary                 = string
     region                               = string
@@ -8,16 +8,28 @@ variable "s3_buckets" {
     log_bucket_for_s3                    = string
     policies                             = list(string)
     server_side_encryption_configuration = any
+    cors_configuration                   = optional(
+      list(
+        object({
+          allowed_methods = list(string)
+          allowed_origins = list(string)
+          allowed_headers = optional(list(string))
+          expose_headers  = optional(list(string))
+          max_age_seconds = optional(number)
+          id              = optional(string)
+        })
+      )
+    )
   }))
 
   default = {
     main = {
-      bucket               = ""
-      region               = "ap-southeast-1"
-      permissions_boundary = ""
-      acl                  = "private"
-      log_bucket_for_s3    = ""
-      policies             = []
+      bucket                               = ""
+      region                               = "ap-southeast-1"
+      permissions_boundary                 = ""
+      acl                                  = "private"
+      log_bucket_for_s3                    = ""
+      policies                             = []
       server_side_encryption_configuration = {
         rule = {
           apply_server_side_encryption_by_default = {
