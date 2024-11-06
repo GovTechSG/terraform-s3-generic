@@ -3,6 +3,8 @@ data "aws_iam_policy_document" "main" {
   for_each = var.s3_buckets
 
   statement {
+    sid = "DenyInsecureTransportProtocol"
+
     actions = ["s3:*"]
     resources = [
       "arn:aws:s3:::${each.value.bucket}",
