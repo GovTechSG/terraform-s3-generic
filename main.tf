@@ -69,6 +69,10 @@ resource "aws_s3_bucket_ownership_controls" "main" {
   for_each = { for key, value in var.s3_buckets : key => value if value.acl == null }
 
   bucket = each.value.bucket
+  depends_on = [
+    aws_s3_bucket.main
+  ]
+
   rule {
     object_ownership = "BucketOwnerEnforced"
   }
