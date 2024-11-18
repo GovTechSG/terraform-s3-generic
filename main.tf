@@ -58,7 +58,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
 }
 
 resource "aws_s3_bucket_logging" "main" {
-  for_each = var.s3_buckets
+  for_each = { for key, value in var.s3_buckets : key => value if value.log_bucket_for_s3 != "" }
 
   bucket = each.value.bucket
 
@@ -141,7 +141,7 @@ resource "aws_s3_bucket_cors_configuration" "main" {
   depends_on = [
     aws_s3_bucket.main
   ]
-  for_each = {for key, value in var.s3_buckets : key => value if value.cors_configuration != null}
+  for_each = { for key, value in var.s3_buckets : key => value if value.cors_configuration != null }
   bucket   = each.value.bucket
 
   dynamic "cors_rule" {
@@ -166,21 +166,20 @@ resource "aws_iam_role" "main" {
 
   name = "${each.value.bucket}-role"
 
-  assume_role_policy   = <<POLICY
-{
- "Version": "2012-10-17",
- "Statement": [
-   {
-     "Action": "sts:AssumeRole",
-     "Principal": {
-       "Service": "s3.amazonaws.com"
-     },
-     "Effect": "Allow",
-     "Sid": ""
-   }
- ]
-}
-POLICY
+  assume_role_policy = jsonencode(
+    {
+      "Version" : "2012-10-17",
+      "Statement" : [
+        {
+          "Action" : "sts:AssumeRole",
+          "Principal" : {
+            "Service" : "s3.amazonaws.com"
+          },
+          "Effect" : "Allow",
+          "Sid" : ""
+        }
+      ]
+  })
   permissions_boundary = each.value.permissions_boundary
 }
 
@@ -190,24 +189,22 @@ resource "aws_iam_role_policy" "main" {
   name = "${each.value.bucket}-policy"
   role = aws_iam_role.main[each.key].name
 
-  policy = <<POLICY
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "S3",
-      "Action": [
-        "s3:ListBucket",
-        "s3:GetObject",
-        "s3:PutObject"
-      ],
-      "Effect": "Allow",
-      "Resource": [
-        "arn:aws:s3:::${each.value.bucket}",
-        "arn:aws:s3:::${each.value.bucket}/*"
-      ]
-    }
-  ]
-}
-POLICY
+  policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Sid" : "S3",
+        "Action" : [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject"
+        ],
+        "Effect" : "Allow",
+        "Resource" : [
+          "arn:aws:s3:::${each.value.bucket}",
+          "arn:aws:s3:::${each.value.bucket}/*"
+        ]
+      }
+    ]
+  })
 }
