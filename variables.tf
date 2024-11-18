@@ -5,7 +5,7 @@ variable "s3_buckets" {
     permissions_boundary                 = string
     region                               = string
     acl                                  = optional(string)
-    log_bucket_for_s3                    = string
+    log_bucket_for_s3                    = optional(string)
     policies                             = list(string)
     server_side_encryption_configuration = any
     cors_configuration                   = optional(
