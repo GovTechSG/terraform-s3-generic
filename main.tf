@@ -67,8 +67,8 @@ resource "aws_s3_bucket_logging" "main" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "main" {
-  # Enforce bucket ownership for For buckets that don't have ACL enabled
-  for_each = { for key, value in var.s3_buckets : key => value if value.acl == null }
+  # For buckets with ACL, use object writer to bypass default bucket ownership controls
+  for_each = { for key, value in var.s3_buckets : key => value if value.acl != null }
 
   bucket = each.value.bucket
   depends_on = [
@@ -76,7 +76,7 @@ resource "aws_s3_bucket_ownership_controls" "main" {
   ]
 
   rule {
-    object_ownership = "BucketOwnerEnforced"
+    object_ownership = "ObjectWriter"
   }
 }
 
@@ -207,4 +207,137 @@ resource "aws_iam_role_policy" "main" {
       }
     ]
   })
+}
+
+###################################################################
+# Lifecycle Config 
+###################################################################
+
+resource "aws_s3_bucket_lifecycle_configuration" "main" {
+  # Only create lifecycle rules for buckets that have them defined
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if try(length(value.lifecycle_rules), 0) > 0
+  }
+
+  bucket                = aws_s3_bucket.bucket.id
+  expected_bucket_owner = data.aws_caller_identity.current.account_id
+
+  dynamic "rule" {
+    for_each = each.value.lifecycle_rules
+
+    content {
+      id = coalesce(try(rule.value.id, null), "rule-${rule.key}")
+      status = coalesce(
+        try(rule.value.enabled ? "Enabled" : "Disabled", null),
+        try(tobool(rule.value.status) ? "Enabled" : "Disabled", null),
+        try(title(lower(rule.value.status)), null),
+        "Enabled"
+      )
+
+      # Abort incomplete multipart uploads
+      dynamic "abort_incomplete_multipart_upload" {
+        for_each = try(rule.value.abort_incomplete_multipart_upload_days != null ? [rule.value.abort_incomplete_multipart_upload_days] : [], [])
+
+        content {
+          days_after_initiation = abort_incomplete_multipart_upload.value
+        }
+      }
+
+      # Object expiration rules
+      dynamic "expiration" {
+        for_each = try(rule.value.expiration != null ? [rule.value.expiration] : [], [])
+
+        content {
+          date                         = try(expiration.value.date, null)
+          days                         = try(expiration.value.days, null)
+          expired_object_delete_marker = try(expiration.value.expired_object_delete_marker, null)
+        }
+      }
+
+      # Object transition rules
+      dynamic "transition" {
+        for_each = try(rule.value.transition != null ? rule.value.transition : [], [])
+
+        content {
+          date          = try(transition.value.date, null)
+          days          = try(transition.value.days, null)
+          storage_class = transition.value.storage_class
+        }
+      }
+
+      # Non-current version expiration
+      dynamic "noncurrent_version_expiration" {
+        for_each = try(rule.value.noncurrent_version_expiration != null ? [rule.value.noncurrent_version_expiration] : [], [])
+
+        content {
+          newer_noncurrent_versions = try(noncurrent_version_expiration.value.newer_noncurrent_versions, null)
+          noncurrent_days = coalesce(
+            try(noncurrent_version_expiration.value.days, null),
+            try(noncurrent_version_expiration.value.noncurrent_days, null)
+          )
+        }
+      }
+
+      # Non-current version transition
+      dynamic "noncurrent_version_transition" {
+        for_each = try(rule.value.noncurrent_version_transition != null ? rule.value.noncurrent_version_transition : [], [])
+
+        content {
+          newer_noncurrent_versions = try(noncurrent_version_transition.value.newer_noncurrent_versions, null)
+          noncurrent_days = coalesce(
+            try(noncurrent_version_transition.value.days, null),
+            try(noncurrent_version_transition.value.noncurrent_days, null)
+          )
+          storage_class = noncurrent_version_transition.value.storage_class
+        }
+      }
+
+      # Filter configuration
+      dynamic "filter" {
+        for_each = rule.value.filter != null ? [rule.value.filter] : [{}]
+
+        content {
+          dynamic "and" {
+            # Use AND block if multiple conditions exist
+            for_each = length(coalesce(try(filter.value.tags, {}), {})) > 1 || length(compact([
+              try(filter.value.prefix, null),
+              try(filter.value.object_size_greater_than, null),
+              try(filter.value.object_size_less_than, null)
+            ])) > 1 ? [true] : []
+
+            content {
+              object_size_greater_than = try(filter.value.object_size_greater_than, null)
+              object_size_less_than    = try(filter.value.object_size_less_than, null)
+              prefix                   = try(filter.value.prefix, null)
+              tags                     = try(filter.value.tags, null)
+            }
+          }
+
+          # Single condition filters (outside of AND block)
+          dynamic "tag" {
+            for_each = length(coalesce(try(filter.value.tags, {}), {})) == 1 ? [filter.value.tags] : []
+
+            content {
+              key   = keys(tag.value)[0]
+              value = values(tag.value)[0]
+            }
+          }
+
+          object_size_greater_than = and.*.id == null ? try(filter.value.object_size_greater_than, null) : null
+          object_size_less_than    = and.*.id == null ? try(filter.value.object_size_less_than, null) : null
+          prefix                   = and.*.id == null ? try(filter.value.prefix, null) : null
+        }
+      }
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.this]
+
+  lifecycle {
+    precondition {
+      condition     = can(aws_s3_bucket_versioning.this[each.key].versioning_configuration[0].status == "Enabled")
+      error_message = "S3 bucket versioning must be enabled to use lifecycle rules with version-specific actions."
+    }
+  }
 }
