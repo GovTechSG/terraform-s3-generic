@@ -35,6 +35,49 @@ module "s3-generic" {
           }
         }
       }
+      lifecycle_rules = [
+        {
+          id      = "backup-lifecycle-rule"
+          enabled = true
+          filter = {
+            object_size_greater_than = 0
+          }
+          transition = [
+            {
+              days          = 30
+              storage_class = "STANDARD_IA"
+            },
+            {
+              days          = 60
+              storage_class = "GLACIER"
+            },
+            {
+              days          = 150
+              storage_class = "DEEP_ARCHIVE"
+            }
+          ]
+          noncurrent_version_transition = [
+            {
+              noncurrent_days = 30
+              storage_class   = "STANDARD_IA"
+            },
+            {
+              noncurrent_days = 60
+              storage_class   = "GLACIER"
+            },
+            {
+              noncurrent_days = 150
+              storage_class   = "DEEP_ARCHIVE"
+            }
+          ]
+          expiration = {
+            days = 183
+          }
+          noncurrent_version_expiration = {
+            noncurrent_days = 151
+          }
+        }
+      ]
     }
   }
 }
