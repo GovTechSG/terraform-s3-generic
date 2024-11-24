@@ -1,3 +1,4 @@
+data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "main" {
   for_each = var.s3_buckets
@@ -220,7 +221,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
     if try(length(value.lifecycle_rules), 0) > 0
   }
 
-  bucket                = aws_s3_bucket.bucket.id
+  bucket                = each.value.bucket
   expected_bucket_owner = data.aws_caller_identity.current.account_id
 
   dynamic "rule" {
@@ -332,11 +333,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
     }
   }
 
-  depends_on = [aws_s3_bucket_versioning.this]
+  depends_on = [aws_s3_bucket_versioning.main]
 
   lifecycle {
     precondition {
-      condition     = can(aws_s3_bucket_versioning.this[each.key].versioning_configuration[0].status == "Enabled")
+      condition     = can(aws_s3_bucket_versioning.main[each.key].versioning_configuration[0].status == "Enabled")
       error_message = "S3 bucket versioning must be enabled to use lifecycle rules with version-specific actions."
     }
   }
