@@ -294,40 +294,45 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
         }
       }
 
-      # Filter configuration
+      # Max 1 block - filter - without any key arguments or tags
       dynamic "filter" {
-        for_each = rule.value.filter != null ? [rule.value.filter] : [{}]
+        for_each = length(try(flatten([rule.value.filter]), [])) == 0 ? [true] : []
 
         content {
-          dynamic "and" {
-            # Use AND block if multiple conditions exist
-            for_each = length(coalesce(try(filter.value.tags, {}), {})) > 1 || length(compact([
-              try(filter.value.prefix, null),
-              try(filter.value.object_size_greater_than, null),
-              try(filter.value.object_size_less_than, null)
-            ])) > 1 ? [true] : []
+        }
+      }
 
-            content {
-              object_size_greater_than = try(filter.value.object_size_greater_than, null)
-              object_size_less_than    = try(filter.value.object_size_less_than, null)
-              prefix                   = try(filter.value.prefix, null)
-              tags                     = try(filter.value.tags, null)
-            }
-          }
+      # Max 1 block - filter - with one key argument or a single tag
+      dynamic "filter" {
+        for_each = [for v in try(flatten([rule.value.filter]), []) : v if max(length(keys(v)), length(try(rule.value.filter.tags, rule.value.filter.tag, []))) == 1]
 
-          # Single condition filters (outside of AND block)
+        content {
+          object_size_greater_than = try(filter.value.object_size_greater_than, null)
+          object_size_less_than    = try(filter.value.object_size_less_than, null)
+          prefix                   = try(filter.value.prefix, null)
+
           dynamic "tag" {
-            for_each = length(coalesce(try(filter.value.tags, {}), {})) == 1 ? [filter.value.tags] : []
+            for_each = try(filter.value.tags, filter.value.tag, [])
 
             content {
-              key   = keys(tag.value)[0]
-              value = values(tag.value)[0]
+              key   = tag.key
+              value = tag.value
             }
           }
+        }
+      }
 
-          object_size_greater_than = and.*.id == null ? try(filter.value.object_size_greater_than, null) : null
-          object_size_less_than    = and.*.id == null ? try(filter.value.object_size_less_than, null) : null
-          prefix                   = and.*.id == null ? try(filter.value.prefix, null) : null
+      # Max 1 block - filter - with more than one key arguments or multiple tags
+      dynamic "filter" {
+        for_each = [for v in try(flatten([rule.value.filter]), []) : v if max(length(keys(v)), length(try(rule.value.filter.tags, rule.value.filter.tag, []))) > 1]
+
+        content {
+          and {
+            object_size_greater_than = try(filter.value.object_size_greater_than, null)
+            object_size_less_than    = try(filter.value.object_size_less_than, null)
+            prefix                   = try(filter.value.prefix, null)
+            tags                     = try(filter.value.tags, filter.value.tag, null)
+          }
         }
       }
     }
