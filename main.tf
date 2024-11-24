@@ -68,8 +68,8 @@ resource "aws_s3_bucket_logging" "main" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "main" {
-  # For buckets with ACL, use object writer to bypass default bucket ownership controls
-  for_each = { for key, value in var.s3_buckets : key => value if value.acl != null }
+  # Enforce bucket ownership for For buckets that don't have ACL enabled
+  for_each = { for key, value in var.s3_buckets : key => value if value.acl == null }
 
   bucket = each.value.bucket
   depends_on = [
@@ -77,7 +77,7 @@ resource "aws_s3_bucket_ownership_controls" "main" {
   ]
 
   rule {
-    object_ownership = "ObjectWriter"
+    object_ownership = "BucketOwnerEnforced"
   }
 }
 
