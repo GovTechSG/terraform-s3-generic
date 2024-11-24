@@ -294,7 +294,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
         }
       }
 
-      # Max 1 block - filter - without any key arguments or tags
+      # Empty filter 
       dynamic "filter" {
         for_each = length(try(flatten([rule.value.filter]), [])) == 0 ? [true] : []
 
@@ -302,9 +302,16 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
         }
       }
 
-      # Max 1 block - filter - with one key argument or a single tag
+      # Single condition filter (no "and" block needed)
       dynamic "filter" {
-        for_each = [for v in try(flatten([rule.value.filter]), []) : v if max(length(keys(v)), length(try(rule.value.filter.tags, rule.value.filter.tag, []))) == 1]
+        for_each = [for v in try(flatten([rule.value.filter]), []) : v if(
+          length(compact([
+            try(v.prefix, null),
+            try(v.object_size_greater_than, null),
+            try(v.object_size_less_than, null)
+          ])) <= 1 &&
+          length(try(flatten([v.tags, v.tag]), [])) <= 1
+        )]
 
         content {
           object_size_greater_than = try(filter.value.object_size_greater_than, null)
@@ -312,19 +319,25 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
           prefix                   = try(filter.value.prefix, null)
 
           dynamic "tag" {
-            for_each = try(filter.value.tags, filter.value.tag, [])
-
+            for_each = try(flatten([filter.value.tags, filter.value.tag]), [])
             content {
-              key   = tag.key
-              value = tag.value
+              key   = try(tag.value.key, null)
+              value = try(tag.value.value, null)
             }
           }
         }
       }
 
-      # Max 1 block - filter - with more than one key arguments or multiple tags
+      # Multiple conditions filter (requires "and" block)
       dynamic "filter" {
-        for_each = [for v in try(flatten([rule.value.filter]), []) : v if max(length(keys(v)), length(try(rule.value.filter.tags, rule.value.filter.tag, []))) > 1]
+        for_each = [for v in try(flatten([rule.value.filter]), []) : v if(
+          length(compact([
+            try(v.prefix, null),
+            try(v.object_size_greater_than, null),
+            try(v.object_size_less_than, null)
+          ])) > 1 ||
+          length(try(flatten([v.tags, v.tag]), [])) > 1
+        )]
 
         content {
           and {
