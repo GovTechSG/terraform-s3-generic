@@ -1,3 +1,4 @@
+data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "main" {
   for_each = var.s3_buckets
@@ -207,4 +208,155 @@ resource "aws_iam_role_policy" "main" {
       }
     ]
   })
+}
+
+###################################################################
+# Lifecycle Config 
+###################################################################
+
+resource "aws_s3_bucket_lifecycle_configuration" "main" {
+  # Only create lifecycle rules for buckets that have them defined
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if try(length(value.lifecycle_rules), 0) > 0
+  }
+
+  bucket                = each.value.bucket
+  expected_bucket_owner = data.aws_caller_identity.current.account_id
+
+  dynamic "rule" {
+    for_each = each.value.lifecycle_rules
+
+    content {
+      id = coalesce(try(rule.value.id, null), "rule-${rule.key}")
+      status = coalesce(
+        try(rule.value.enabled ? "Enabled" : "Disabled", null),
+        try(tobool(rule.value.status) ? "Enabled" : "Disabled", null),
+        try(title(lower(rule.value.status)), null),
+        "Enabled"
+      )
+
+      # Abort incomplete multipart uploads
+      dynamic "abort_incomplete_multipart_upload" {
+        for_each = try(rule.value.abort_incomplete_multipart_upload_days != null ? [rule.value.abort_incomplete_multipart_upload_days] : [], [])
+
+        content {
+          days_after_initiation = abort_incomplete_multipart_upload.value
+        }
+      }
+
+      # Object expiration rules
+      dynamic "expiration" {
+        for_each = try(rule.value.expiration != null ? [rule.value.expiration] : [], [])
+
+        content {
+          date                         = try(expiration.value.date, null)
+          days                         = try(expiration.value.days, null)
+          expired_object_delete_marker = try(expiration.value.expired_object_delete_marker, null)
+        }
+      }
+
+      # Object transition rules
+      dynamic "transition" {
+        for_each = try(rule.value.transition != null ? rule.value.transition : [], [])
+
+        content {
+          date          = try(transition.value.date, null)
+          days          = try(transition.value.days, null)
+          storage_class = transition.value.storage_class
+        }
+      }
+
+      # Non-current version expiration
+      dynamic "noncurrent_version_expiration" {
+        for_each = try(rule.value.noncurrent_version_expiration != null ? [rule.value.noncurrent_version_expiration] : [], [])
+
+        content {
+          newer_noncurrent_versions = try(noncurrent_version_expiration.value.newer_noncurrent_versions, null)
+          noncurrent_days = coalesce(
+            try(noncurrent_version_expiration.value.days, null),
+            try(noncurrent_version_expiration.value.noncurrent_days, null)
+          )
+        }
+      }
+
+      # Non-current version transition
+      dynamic "noncurrent_version_transition" {
+        for_each = try(rule.value.noncurrent_version_transition != null ? rule.value.noncurrent_version_transition : [], [])
+
+        content {
+          newer_noncurrent_versions = try(noncurrent_version_transition.value.newer_noncurrent_versions, null)
+          noncurrent_days = coalesce(
+            try(noncurrent_version_transition.value.days, null),
+            try(noncurrent_version_transition.value.noncurrent_days, null)
+          )
+          storage_class = noncurrent_version_transition.value.storage_class
+        }
+      }
+
+      # Empty filter 
+      dynamic "filter" {
+        for_each = length(try(flatten([rule.value.filter]), [])) == 0 ? [true] : []
+
+        content {
+        }
+      }
+
+      # Single condition filter (no "and" block needed)
+      dynamic "filter" {
+        for_each = [for v in try(flatten([rule.value.filter]), []) : v if(
+          length(compact([
+            try(v.prefix, null),
+            try(v.object_size_greater_than, null),
+            try(v.object_size_less_than, null)
+          ])) <= 1 &&
+          length(try(flatten([v.tags, v.tag]), [])) <= 1
+        )]
+
+        content {
+          object_size_greater_than = try(filter.value.object_size_greater_than, null)
+          object_size_less_than    = try(filter.value.object_size_less_than, null)
+          prefix                   = try(filter.value.prefix, null)
+
+          dynamic "tag" {
+            for_each = try(flatten([filter.value.tags, filter.value.tag]), [])
+            content {
+              key   = try(tag.value.key, null)
+              value = try(tag.value.value, null)
+            }
+          }
+        }
+      }
+
+      # Multiple conditions filter (requires "and" block)
+      dynamic "filter" {
+        for_each = [for v in try(flatten([rule.value.filter]), []) : v if(
+          length(compact([
+            try(v.prefix, null),
+            try(v.object_size_greater_than, null),
+            try(v.object_size_less_than, null)
+          ])) > 1 ||
+          length(try(flatten([v.tags, v.tag]), [])) > 1
+        )]
+
+        content {
+          and {
+            object_size_greater_than = try(filter.value.object_size_greater_than, null)
+            object_size_less_than    = try(filter.value.object_size_less_than, null)
+            prefix                   = try(filter.value.prefix, null)
+            tags                     = try(filter.value.tags, filter.value.tag, null)
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.main]
+
+  lifecycle {
+    precondition {
+      condition     = can(aws_s3_bucket_versioning.main[each.key].versioning_configuration[0].status == "Enabled")
+      error_message = "S3 bucket versioning must be enabled to use lifecycle rules with version-specific actions."
+    }
+  }
 }
