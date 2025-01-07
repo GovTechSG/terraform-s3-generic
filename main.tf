@@ -32,7 +32,9 @@ resource "aws_s3_bucket" "main" {
   for_each = var.s3_buckets
 
   bucket = each.value.bucket
-  
+
+  object_lock_enabled = var.object_lock_enabled
+
   tags_all = var.tags
 }
 

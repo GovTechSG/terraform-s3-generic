@@ -67,6 +67,12 @@ variable "path" {
   default     = "/"
 }
 
+variable "object_lock_enabled" {
+  description = "(Optional) Enable object lock for the S3 bucket"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "(Optional) A mapping of tags to assign to the bucket."
   type        = map(string)
