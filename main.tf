@@ -35,7 +35,7 @@ resource "aws_s3_bucket" "main" {
 
   object_lock_enabled = var.object_lock_enabled
 
-  tags_all = var.tags
+  tags = var.tags
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
