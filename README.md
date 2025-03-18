@@ -6,6 +6,7 @@ Creates a s3 bucket with policies to allow using it, for attaching to other role
 ```hcl
 module "s3-generic" {
   source = "../..//"
+  object_ownership = "BucketOwnerEnforced" # Optional, defaults to BucketOwnerEnforced
   s3_buckets = {
     backups = {
       bucket               = "my-backups"
@@ -54,6 +55,7 @@ module "s3-generic" {
 | <a name="input_path"></a> [path](#input\_path) | Desired path for the IAM user | `string` | `"/"` | no |
 | <a name="input_s3_buckets"></a> [s3\_buckets](#input\_s3\_buckets) | A map of bucket names to an object describing the S3 bucket settings for the bucket. | <pre>map(object({ </br>    bucket                               = string </br>    permissions_boundary                 = string </br>    region                               = string </br>    acl                                  = optional(string) </br>    log_bucket_for_s3                    = optional(string) </br>    policies                             = list(string) </br>    server_side_encryption_configuration = any </br>    cors_configuration = optional( </br>      list( </br>        object({ </br>          allowed_methods = list(string) </br>          allowed_origins = list(string) </br>          allowed_headers = optional(list(string)) </br>          expose_headers  = optional(list(string)) </br>          max_age_seconds = optional(number) </br>          id              = optional(string) </br>        }) </br>      ) </br>    ) </br>    lifecycle_rules = optional(list(object({ </br>      id      = optional(string) </br>      enabled = optional(bool, true) </br>      filter = optional(object({ </br>        prefix                   = optional(string) </br>        object_size_greater_than = optional(number) </br>        object_size_less_than    = optional(number) </br>        tags                     = optional(map(string)) </br>      })) </br>      transition = optional(list(object({ </br>        days          = optional(number) </br>        date          = optional(string) </br>        storage_class = string </br>      }))) </br>    }))) </br>  })) </br></pre> | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | (Optional) A mapping of tags to assign to the bucket. | `map(string)` | `{}` | no |
+| <a name="input_object_ownership"></a> [object\_ownership](#input\_object\_ownership) | (Optional) Object ownership. Valid values: BucketOwnerEnforced, BucketOwnerPreferred or ObjectWriter | `string` | `"BucketOwnerEnforced"` | no |
 
 ## Outputs
 

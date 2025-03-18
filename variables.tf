@@ -78,3 +78,13 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "object_ownership" {
+  description = "(Optional) Object ownership. Valid values: BucketOwnerEnforced, BucketOwnerPreferred or ObjectWriter"
+  type        = string
+  default     = "BucketOwnerEnforced"
+  validation {
+    condition     = contains(["BucketOwnerEnforced", "BucketOwnerPreferred", "ObjectWriter"], var.object_ownership)
+    error_message = "Valid values for var.object_ownership are BucketOwnerEnforced, BucketOwnerPreferred, or ObjectWriter."
+  }
+}
