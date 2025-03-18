@@ -81,7 +81,7 @@ resource "aws_s3_bucket_ownership_controls" "main" {
   ]
 
   rule {
-    object_ownership = "BucketOwnerEnforced"
+    object_ownership = var.object_ownership
   }
 }
 
