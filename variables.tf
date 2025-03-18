@@ -6,6 +6,7 @@ variable "s3_buckets" {
     region                               = string
     acl                                  = optional(string)
     log_bucket_for_s3                    = optional(string)
+    object_ownership                     = optional(string)
     policies                             = list(string)
     server_side_encryption_configuration = any
     cors_configuration = optional(
