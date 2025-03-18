@@ -81,7 +81,7 @@ resource "aws_s3_bucket_ownership_controls" "main" {
   ]
 
   rule {
-    object_ownership = var.object_ownership
+    object_ownership = lookup(each.value, "object_ownership", var.object_ownership)
   }
 }
 
