@@ -1,5 +1,13 @@
 variable "s3_buckets" {
   description = "A map of bucket names to an object describing the S3 bucket settings for the bucket."
+
+  validation {
+    condition = alltrue([for bucket in var.s3_buckets :
+      bucket.object_ownership == null ? true : 
+      contains(["BucketOwnerEnforced", "BucketOwnerPreferred", "ObjectWriter"], bucket.object_ownership)
+    ])
+    error_message = "When specified, bucket-level object_ownership must be one of: BucketOwnerEnforced, BucketOwnerPreferred, or ObjectWriter."
+  }
   type = map(object({
     bucket                               = string
     permissions_boundary                 = string
