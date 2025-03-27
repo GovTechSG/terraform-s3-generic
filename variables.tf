@@ -3,7 +3,7 @@ variable "s3_buckets" {
 
   validation {
     condition = alltrue([for bucket in var.s3_buckets :
-      bucket.object_ownership == null ? true : 
+      bucket.object_ownership == null ? true :
       contains(["BucketOwnerEnforced", "BucketOwnerPreferred", "ObjectWriter"], bucket.object_ownership)
     ])
     error_message = "When specified, bucket-level object_ownership must be one of: BucketOwnerEnforced, BucketOwnerPreferred, or ObjectWriter."
@@ -17,6 +17,8 @@ variable "s3_buckets" {
     object_ownership                     = optional(string)
     policies                             = list(string)
     server_side_encryption_configuration = any
+    malware_protection                   = optional(bool, false)
+    malware_protection_prefix            = optional(list(string))
     cors_configuration = optional(
       list(
         object({
@@ -43,16 +45,33 @@ variable "s3_buckets" {
         date          = optional(string)
         storage_class = string
       })))
+      expiration = optional(object({
+        date                         = optional(string)
+        days                         = optional(number)
+        expired_object_delete_marker = optional(bool)
+      }))
+      noncurrent_version_expiration = optional(object({
+        noncurrent_days           = optional(number)
+        newer_noncurrent_versions = optional(number)
+      }))
+      noncurrent_version_transition = optional(list(object({
+        noncurrent_days           = optional(number)
+        newer_noncurrent_versions = optional(number)
+        storage_class             = string
+      })))
+      abort_incomplete_multipart_upload_days = optional(number)
     })))
   }))
 
   default = {
     main = {
-      bucket               = ""
-      region               = "ap-southeast-1"
-      permissions_boundary = ""
-      log_bucket_for_s3    = ""
-      policies             = []
+      bucket                    = ""
+      region                    = "ap-southeast-1"
+      permissions_boundary      = ""
+      log_bucket_for_s3         = ""
+      policies                  = []
+      malware_protection        = false
+      malware_protection_prefix = []
       server_side_encryption_configuration = {
         rule = {
           apply_server_side_encryption_by_default = {
