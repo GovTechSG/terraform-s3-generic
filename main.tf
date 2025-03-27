@@ -182,7 +182,7 @@ resource "aws_iam_role" "main" {
           },
           "Effect" : "Allow",
           "Sid" : ""
-        }
+        },
       ]
   })
   permissions_boundary = each.value.permissions_boundary
@@ -363,4 +363,217 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
       error_message = "S3 bucket versioning must be enabled to use lifecycle rules with version-specific actions."
     }
   }
+}
+
+###################################################################
+# GuardDuty Malware Protection
+###################################################################
+
+resource "aws_iam_role" "guardduty_malware_protection" {
+  # Only create roles for buckets that have malware protection enabled
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if try(value.malware_protection, false) == true
+  }
+
+  name = "${each.value.bucket}-guardduty-malware-protection-role"
+
+  assume_role_policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Action" : "sts:AssumeRole",
+        "Principal" : {
+          "Service" : "malware-protection-plan.guardduty.amazonaws.com"
+        },
+        "Effect" : "Allow",
+        "Sid" : "",
+        "Condition" : {
+          "StringEquals" : {
+            "aws:SourceAccount" : "${data.aws_caller_identity.current.account_id}"
+          },
+          "ArnLike" : {
+            "aws:SourceArn" : "arn:aws:guardduty:ap-southeast-1:${data.aws_caller_identity.current.account_id}:malware-protection-plan/*"
+          }
+        }
+      }
+    ]
+  })
+  permissions_boundary = each.value.permissions_boundary
+}
+
+resource "aws_iam_policy" "guardduty_malware_protection" {
+  # Only create policies for buckets that have malware protection enabled
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if try(value.malware_protection, false) == true
+  }
+
+  name        = "${each.value.bucket}-guardduty-malware-protection-policy"
+  description = "Policy for GuardDuty Malware Protection scanning on ${each.value.bucket}"
+
+  policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Sid" : "AllowManagedRuleToSendS3EventsToGuardDuty",
+        "Effect" : "Allow",
+        "Action" : [
+          "events:PutRule",
+          "events:DeleteRule",
+          "events:PutTargets",
+          "events:RemoveTargets"
+        ],
+        "Resource" : [
+          "arn:aws:events:*:${data.aws_caller_identity.current.account_id}:rule/DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3*"
+        ],
+        "Condition" : {
+          "StringLike" : {
+            "events:ManagedBy" : "malware-protection-plan.guardduty.amazonaws.com"
+          }
+        }
+      },
+      {
+        "Sid" : "AllowGuardDutyToMonitorEventBridgeManagedRule",
+        "Effect" : "Allow",
+        "Action" : [
+          "events:DescribeRule",
+          "events:ListTargetsByRule"
+        ],
+        "Resource" : [
+          "arn:aws:events:*:${data.aws_caller_identity.current.account_id}:rule/DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3*"
+        ]
+      },
+      {
+        "Sid" : "AllowPostScanTag",
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:PutObjectTagging",
+          "s3:GetObjectTagging",
+          "s3:PutObjectVersionTagging",
+          "s3:GetObjectVersionTagging"
+        ],
+        "Resource" : [
+          "arn:aws:s3:::${each.value.bucket}/*"
+        ]
+        "Condition" : {
+          "StringEquals" : {
+            "aws:ResourceAccount" : "${data.aws_caller_identity.current.account_id}"
+          }
+        }
+      },
+      {
+        "Sid" : "AllowEnableS3EventBridgeEvents",
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:PutBucketNotification",
+          "s3:GetBucketNotification"
+        ],
+        "Resource" : [
+          "arn:aws:s3:::${each.value.bucket}"
+        ]
+      },
+      {
+        "Sid" : "AllowPutValidationObject",
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:PutObject"
+        ],
+        "Resource" : [
+          "arn:aws:s3:::${each.value.bucket}/malware-protection-resource-validation-object"
+        ],
+        "Condition" : {
+          "StringEquals" : {
+            "aws:ResourceAccount" : "${data.aws_caller_identity.current.account_id}"
+          }
+        }
+      },
+      {
+        "Sid" : "AllowCheckBucketOwnership",
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:ListBucket"
+        ],
+        "Resource" : [
+          "arn:aws:s3:::${each.value.bucket}"
+        ]
+        "Condition" : {
+          "StringEquals" : {
+            "aws:ResourceAccount" : "${data.aws_caller_identity.current.account_id}"
+          }
+        }
+      },
+      {
+        "Sid" : "AllowMalwareScan",
+        "Effect" : "Allow",
+        "Action" : [
+          "s3:GetObject",
+          "s3:GetObjectVersion"
+        ],
+        "Resource" : [
+          "arn:aws:s3:::${each.value.bucket}/*"
+        ],
+        "Condition" : {
+          "StringEquals" : {
+            "aws:ResourceAccount" : "${data.aws_caller_identity.current.account_id}"
+          }
+        }
+      },
+      {
+        "Sid" : "AllowDecryptForMalwareScan",
+        "Effect" : "Allow",
+        "Action" : [
+          "kms:GenerateDataKey",
+          "kms:Decrypt"
+        ],
+        "Resource" : "*",
+        "Condition" : {
+          "StringLike" : {
+            "kms:ViaService" : "s3.*.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "guardduty_malware_protection" {
+  # Only create attachments for buckets that have malware protection enabled
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if try(value.malware_protection, false) == true
+  }
+
+  role       = aws_iam_role.guardduty_malware_protection[each.key].name
+  policy_arn = aws_iam_policy.guardduty_malware_protection[each.key].arn
+}
+
+resource "aws_guardduty_malware_protection_plan" "main" {
+  # Only create malware protection plans for buckets that have it enabled
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if try(value.malware_protection, false) == true
+  }
+
+  role = aws_iam_role.guardduty_malware_protection[each.key].arn
+
+  protected_resource {
+    s3_bucket {
+      bucket_name     = aws_s3_bucket.main[each.key].id
+      object_prefixes = each.value.malware_protection_prefix
+    }
+  }
+
+  actions {
+    tagging {
+      status = "ENABLED"
+    }
+  }
+
+  depends_on = [
+    aws_s3_bucket.main,
+    aws_iam_role_policy_attachment.guardduty_malware_protection
+  ]
+
+  tags = var.tags
 }
