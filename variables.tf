@@ -38,7 +38,7 @@ variable "s3_buckets" {
         prefix                   = optional(string)
         object_size_greater_than = optional(number)
         object_size_less_than    = optional(number)
-        tags                     = optional(map(string))
+        tags                     = optional(map(string), {})
       }))
       transition = optional(list(object({
         days          = optional(number)

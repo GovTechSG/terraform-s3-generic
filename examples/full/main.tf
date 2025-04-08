@@ -41,6 +41,9 @@ module "s3-generic" {
           enabled = true
           filter = {
             object_size_greater_than = 0
+            tags = {
+              GuardDutyMalwareScanStatus = "THREATS_FOUND"
+            }
           }
           transition = [
             {
