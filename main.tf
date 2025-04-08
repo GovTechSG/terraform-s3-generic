@@ -298,36 +298,41 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
         }
       }
 
-      # Empty filter 
-      dynamic "filter" {
-        for_each = length(try(flatten([rule.value.filter]), [])) == 0 ? [true] : []
+      # Splitting up the filter conditions into 3 blocks because there's a bug in the Terraform AWS provider
+      # Error: Provider produced inconsistent result after apply
+      # https://github.com/hashicorp/terraform-provider-aws/issues/41710
 
-        content {
-        }
-      }
-
-      # Single condition filter (no "and" block needed)
+      # Single condition prefix and size filter (no "and" block needed)
       dynamic "filter" {
         for_each = [for v in try(flatten([rule.value.filter]), []) : v if(
           length(compact([
             try(v.prefix, null),
             try(v.object_size_greater_than, null),
             try(v.object_size_less_than, null)
-          ])) <= 1 &&
-          length(try(flatten([v.tags, v.tag]), [])) <= 1
+          ])) > 0 &&
+          length(try(v.tags, {})) == 0
         )]
 
         content {
           object_size_greater_than = try(filter.value.object_size_greater_than, null)
           object_size_less_than    = try(filter.value.object_size_less_than, null)
           prefix                   = try(filter.value.prefix, null)
+        }
+      }
 
-          dynamic "tag" {
-            for_each = try(flatten([filter.value.tags, filter.value.tag]), [])
-            content {
-              key   = try(tag.value.key, null)
-              value = try(tag.value.value, null)
-            }
+      # Single or Multiple condition tag filter (requires "and" block)
+      dynamic "filter" {
+        for_each = [for v in try(flatten([rule.value.filter]), []) : v if(
+          length(compact([
+            try(v.prefix, null),
+            try(v.object_size_greater_than, null),
+            try(v.object_size_less_than, null)
+          ])) == 0 &&
+          length(try(v.tags, {})) > 0
+        )]
+        content {
+          and {
+            tags = try(filter.value.tags, null)
           }
         }
       }
@@ -339,8 +344,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
             try(v.prefix, null),
             try(v.object_size_greater_than, null),
             try(v.object_size_less_than, null)
-          ])) > 1 ||
-          length(try(flatten([v.tags, v.tag]), [])) > 1
+          ])) >= 1 &&
+          length(try(v.tags, {})) >= 1
         )]
 
         content {
@@ -348,7 +353,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
             object_size_greater_than = try(filter.value.object_size_greater_than, null)
             object_size_less_than    = try(filter.value.object_size_less_than, null)
             prefix                   = try(filter.value.prefix, null)
-            tags                     = try(filter.value.tags, filter.value.tag, null)
+            tags                     = try(filter.value.tags, null)
           }
         }
       }
