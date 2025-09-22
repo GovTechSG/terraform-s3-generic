@@ -167,7 +167,10 @@ resource "aws_s3_bucket_cors_configuration" "main" {
 ###################################################################
 
 resource "aws_iam_role" "main" {
-  for_each = var.s3_buckets
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if value.create_iam_role == true
+  }
 
   name = "${each.value.bucket}-role"
 
@@ -189,7 +192,10 @@ resource "aws_iam_role" "main" {
 }
 
 resource "aws_iam_role_policy" "main" {
-  for_each = var.s3_buckets
+  for_each = {
+    for key, value in var.s3_buckets : key => value
+    if value.create_iam_role == true
+  }
 
   name = "${each.value.bucket}-policy"
   role = aws_iam_role.main[each.key].name

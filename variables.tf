@@ -17,6 +17,7 @@ variable "s3_buckets" {
     object_ownership                     = optional(string)
     policies                             = list(string)
     server_side_encryption_configuration = any
+    create_iam_role                      = optional(bool, true)
     malware_protection                   = optional(bool, false)
     malware_protection_prefix            = optional(list(string))
     cors_configuration = optional(
