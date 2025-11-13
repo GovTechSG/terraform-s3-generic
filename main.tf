@@ -189,6 +189,8 @@ resource "aws_iam_role" "main" {
       ]
   })
   permissions_boundary = each.value.permissions_boundary
+
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy" "main" {
