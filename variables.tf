@@ -116,3 +116,9 @@ variable "object_ownership" {
     error_message = "Valid values for var.object_ownership are BucketOwnerEnforced, BucketOwnerPreferred, or ObjectWriter."
   }
 }
+
+variable "allow_dedicated_role_creation" {
+  description = "Allow creation of dedicated IAM role per S3 bucket, this flag is true for all and false for none."
+  type        = bool
+  default     = true
+}
