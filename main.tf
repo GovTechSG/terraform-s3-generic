@@ -62,7 +62,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
   }
 
   lifecycle {
-    ignore_changes = [rule[0].blocked_encryption_types]
+    ignore_changes = [rule]
   }
 }
 
